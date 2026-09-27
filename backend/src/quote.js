@@ -21,7 +21,14 @@ function toAsciiDigits(s) {
 export function parsePrice(text) {
   if (!text) return null;
   let t = toAsciiDigits(text);
-  t = t.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ''); // zero-width + nbsp
+  t = t.replace(/[ -﻿ ]/g, ''); // zero-width + nbsp
+  // European-style thousand dots: 42.999,00 → 42999 (dot required in the
+  // integer part so Indian "1,23,456.00" never matches this branch).
+  const eu = t.match(/(\d[\d.]*\.\d[\d.]*),(\d{2})(?!\d)/);
+  if (eu) {
+    const euNum = Number(eu[1].replace(/\./g, ''));
+    return Number.isFinite(euNum) && euNum > 0 ? Math.round(euNum) : null;
+  }
   const m = t.match(/[\d][\d,.\s]*\d|\d/);
   if (!m) return null;
   const num = Number(m[0].replace(/[, ]/g, ''));

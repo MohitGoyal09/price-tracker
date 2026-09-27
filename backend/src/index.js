@@ -4,6 +4,7 @@ import cors from 'cors';
 import { supabase } from './supabase.js';
 import { searchCatalog, getItem } from './catalog.js';
 import { scrapeQuote, closeBrowser } from './quote.js';
+import { buildCsv } from './csv.js';
 
 const app = express();
 app.use(cors());
@@ -81,14 +82,9 @@ app.get('/api/history/:id', async (req, res) => {
 app.get('/api/export.csv', async (_req, res) => {
   const { data, error } = await supabase.from('scrape_attempts').select('*').order('scraped_at', { ascending: true }).limit(5000);
   if (error) return res.status(500).json({ error: error.message });
-  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = ['store_product_id,product_name,selected_option,timestamp_utc,price,stock,outcome'];
-  for (const r of data || []) {
-    lines.push([r.store_product_id, q(r.product_name), q(r.selected_option), new Date(r.scraped_at).toISOString(), r.price ?? '', r.stock ?? '', r.outcome].join(','));
-  }
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="scrape-history.csv"');
-  res.send(lines.join('\n'));
+  res.send(buildCsv(data));
 });
 
 async function scrapeAndLog(tracked) {
