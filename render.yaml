@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: price-tracker-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    startCommand: npm start
+    envVars:
+      - key: STORE_BASE_URL
+        value: https://demo.inelabteamdev.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true

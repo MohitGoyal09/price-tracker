@@ -6,13 +6,15 @@
 
 ## Reliability choices
 - Hybrid: lightweight fetch for catalog, **Playwright Chromium** only for price (genuinely needs JS + trusted mouse events + WASM).
-- Human-like hover (10 stepped moves + 800ms dwell), 6 attempts with 300×n ms backoff (mirrors site), 20–25s timeouts, per-attempt fresh browser context.
-- Manifest-agnostic parsing: try scoped selectors first, fall back to panel/body text; `parsePrice` normalizes fullwidth digits, strips zero-width/nbsp, extracts first number; `parseStock` handles "Sold out"→0.
+- Human-like hover (12 stepped moves + 900ms dwell), verified enabled-state before clicking; 6 attempts with 300×n ms backoff (mirrors site); per-attempt fresh browser context (a flagged session can't poison later attempts).
+- Cookie-consent scrim (`.consent-scrim`) dismissed before every interaction — it covers the viewport, appears at random times, and eats all hovers/clicks.
+- Clicks re-fired until the app leaves idle (site drops ~17% silently), then stall-aware result wait: up to 300s while API traffic/status text moves, abort after 75s of silence.
+- Manifest-agnostic parsing scoped strictly inside `.offer-ready` (verified in the bundle — the assumed `.offer-detail` class never existed). `parsePrice` normalizes fullwidth digits, strips zero-width/nbsp; a `₹/Rs/INR` marker is required before any number is accepted, so product IDs and decoy digits can't be stored as prices. `parseStock` handles "Sold out"→0.
 - Honest logging: every attempt → `scrape_attempts` row (`success`/`retried`/`failed`); failures store NULL price/stock and appear in CSV + dashboard log. Never write parsed-garbage: null price/stock ⇒ failed, not zero.
 - Scheduling: external cron every 2h (Render free sleeps); no in-process loop.
 
 ## Trade-offs
-- Full-browser per product is slower (~10–20s) vs API; accepted because challenge requires it. Sequential scrapes avoid rate-limit 429s.
+- Full-browser per product is slower (~30–60s typical) vs API; accepted because challenge requires it. Sequential scrapes avoid rate-limit 429s.
 - Client-side search pages up to 16 requests; capped at 60 results for UI speed.
 - No price-drop emails yet (bonus); schema supports it via history query.
 
@@ -21,4 +23,7 @@
 2. Assumed `?q=` search param existed — tested `q`/`search`, both ignored (totalPages unchanged); fixed with paged client-side filter.
 3. Assumed stable selectors (`.price`) — manifest shows rotating classes + varied formats; fixed with manifest-agnostic fallbacks + normalizers.
 4. First Playwright draft clicked immediately — price stayed locked; fixed after reading `minMoves:8,minDwellMs:600` + `isTrusted` gate, adding stepped hover + dwell.
-5. AI disclosure: used AI for scaffolding + bundle analysis; all site behavior above was verified by hand (`curl`, JS grep) and code was read before accepting.
+5. Assumed the success panel was `.offer-detail` — bundle grep proved it is `.offer-ready`; every success was silently discarded until fixed. Lesson: verify selectors against the bundle, never from memory.
+6. `page.waitForFunction()` returns a JSHandle, not the value — it stringifies as `"ok"` (perfect-looking logs!) while `=== 'ok'` is always false. Fixed with `.jsonValue()`. This one bug caused a full day of phantom failures.
+7. Deleted history rows where price equaled the product ID as "parser errors" — the store genuinely prices that way sometimes. Lesson: don't "clean" data on a hunch; the currency-marker guard already prevents real misparses.
+8. AI disclosure: used AI for scaffolding + bundle analysis; all site behavior above was verified by hand (`curl`, JS grep, screenshots of headless runs) and code was read before accepting.

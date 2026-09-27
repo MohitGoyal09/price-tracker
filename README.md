@@ -1,20 +1,27 @@
 # Product Price Tracker (INE intern assignment)
 
-## Setup
+Live: <frontend-vercel-url> · API: <render-backend-url> · Repo: https://github.com/MohitGoyal09/price-tracker
+
+## Setup (local)
 1. Supabase: run `supabase/schema.sql` in SQL editor. Requires `pgcrypto` for `gen_random_uuid` (enabled by default).
 2. Backend (`backend/`):
    ```
    npm install
-   npx playwright install --with-deps chromium
+   npx playwright install chromium
    cp .env.example .env  # fill SUPABASE_URL, SUPABASE_SERVICE_KEY, CRON_SECRET
    npm start  # :4000
    ```
 3. Frontend (`frontend/`):
    ```
    npm install
-   VITE_API_URL=https://<render-backend> npm run build  # Vercel: set VITE_API_URL env
+   npm run dev  # :5173, talks to localhost:4000 by default
    ```
 4. Seed 2–3 tracked products from the dashboard search, then trigger `Scrape now`.
+
+## Deploy
+- Backend → Render: Blueprint in repo-root `render.yaml` (rootDir `backend`), or manual: Node service, build `npm install && npx playwright install --with-deps chromium`, start `npm start`. Set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `CRON_SECRET`, `STORE_BASE_URL` in dashboard.
+- Frontend → Vercel: import `frontend/` as project root (Vite auto-detected), set `VITE_API_URL` to the Render URL, deploy.
+- Cron → cron-job.org every 2h: `GET https://<render-backend>/api/cron/scrape?secret=$CRON_SECRET`.
 
 ## Scraping schedule
 - External cron (cron-job.org) every 2h: `GET https://<backend>/api/cron/scrape?secret=$CRON_SECRET`.
@@ -23,9 +30,9 @@
 ## Env vars (backend)
 SUPABASE_URL, SUPABASE_SERVICE_KEY (server-only), CRON_SECRET, STORE_BASE_URL=https://demo.inelabteamdev.com, PORT, HEADED=0/1.
 
-## Headed run + recording
+## Headed run + recording (from `backend/`)
 ```
 mkdir -p headed-artifacts
-STORE_BASE_URL=https://demo.inelabteamdev.com node scripts/headed.js 2746 o1
+SCRAPE_DEBUG=1 node scripts/headed.js 2889 o1
 ```
-Record with OBS/QuickTime (2–4 min): show hover unlocking price, a retry on flaky load, final success row in dashboard + CSV export.
+Record with OBS/QuickTime (2–4 min): visible browser dismisses consent, hover unlocks the price, a dropped click retries, dashboard shows the new row + CSV export.
