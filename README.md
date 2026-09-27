@@ -22,6 +22,11 @@ Live: <frontend-vercel-url> · API: <render-backend-url> · Repo: https://github
 - Backend → Render: Blueprint in repo-root `render.yaml` (rootDir `backend`), or manual: Node service, build `npm install && npx playwright install --with-deps chromium`, start `npm start`. Set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `CRON_SECRET`, `STORE_BASE_URL` in dashboard.
 - Frontend → Vercel: import `frontend/` as project root (Vite auto-detected), set `VITE_API_URL` to the Render URL, deploy.
 - Cron → cron-job.org every 2h: `GET https://<render-backend>/api/cron/scrape?secret=$CRON_SECRET`.
+  Responds 202 instantly and scrapes in the background (a full run takes minutes);
+  overlapping runs are skipped. Check dashboard history for new rows ~10 min after trigger.
+- Keep-warm → second cron-job.org job every 10 min: `GET https://<render-backend>/api/health`.
+  Render free sleeps after ~15 min idle; this keeps one instance warm (well within 750 h/month).
+  The 2h scrape cron would cold-boot otherwise and burn its HTTP timeout on startup.
 
 ## Scraping schedule
 - External cron (cron-job.org) every 2h: `GET https://<backend>/api/cron/scrape?secret=$CRON_SECRET`.

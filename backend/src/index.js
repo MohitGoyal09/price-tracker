@@ -118,15 +118,24 @@ async function scrapeAndLog(tracked) {
 
 // Scheduled scraping: every 2h via cron-job.org -> GET /api/cron/scrape?secret=...
 // (free-tier backends sleep; no always-on loop — external cron wakes us)
+// Responds 202 immediately and scrapes in the background: a full run takes
+// minutes, far longer than any cron HTTP timeout. Overlapping runs are
+// skipped via the in-memory guard (single instance).
+let cronRunning = false;
 app.get('/api/cron/scrape', async (req, res) => {
   if (CRON_SECRET && req.query.secret !== CRON_SECRET) return res.status(401).json({ error: 'bad secret' });
-  const { data: tracked } = await supabase.from('tracked_products').select('*');
-  const results = [];
-  for (const t of tracked || []) {
-    const r = await scrapeAndLog(t);
-    results.push({ product: t.product_name, option: t.selected_option_label, ...r, price: r.price, stock: r.stock });
+  if (cronRunning) return res.status(202).json({ status: 'already-running' });
+  cronRunning = true;
+  res.status(202).json({ status: 'started' });
+  try {
+    const { data: tracked } = await supabase.from('tracked_products').select('*');
+    for (const t of tracked || []) {
+      await scrapeAndLog(t).catch((e) => console.error('[cron] scrape failed:', t.product_name, e.message));
+    }
+    console.log(`[cron] background run done (${(tracked || []).length} products)`);
+  } finally {
+    cronRunning = false;
   }
-  res.json({ scraped: results.length, results });
 });
 
 // Manual trigger (dashboard button + headed demo)
