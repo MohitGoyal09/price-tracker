@@ -1,6 +1,6 @@
 # Product Price Tracker (INE intern assignment)
 
-Live: <frontend-vercel-url> · API: <render-backend-url> · Repo: https://github.com/MohitGoyal09/price-tracker
+Live: https://price-tracker-lime-chi.vercel.app · API: https://price-tracker-1-e7u9.onrender.com · Repo: https://github.com/MohitGoyal09/price-tracker
 
 ## Setup (local)
 1. Supabase: run `supabase/schema.sql` in SQL editor. Requires `pgcrypto` for `gen_random_uuid` (enabled by default).
