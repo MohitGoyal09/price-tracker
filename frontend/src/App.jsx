@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Search, RefreshCw, Zap, Download, ExternalLink, Trash2, Activity, ChevronDown } from 'lucide-react';
+import { Search, RefreshCw, Zap, Download, ExternalLink, Trash2, Activity, ChevronDown, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/card';
 import { Badge, OutcomeBadge } from './components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Skeleton } from './components/ui/skeleton';
 import { cn } from './lib/utils';
 
@@ -27,6 +28,7 @@ export default function App() {
   const [open, setOpen] = useState({});
   const [msg, setMsg] = useState('Connected to the mock store.');
   const [busy, setBusy] = useState({ search: false, scrape: false, initial: true });
+  const [feedFilter, setFeedFilter] = useState('all');
 
   const refresh = async () => {
     try {
@@ -78,6 +80,25 @@ export default function App() {
   const retryCount = all.filter((r) => r.outcome === 'retried').length;
   const failCount = all.filter((r) => r.outcome === 'failed').length;
 
+  // Global activity feed: every attempt across products, newest first.
+  const byId = Object.fromEntries(tracked.map((t) => [t.id, t]));
+  const feed = all
+    .map((r) => ({ ...r, product: byId[r.tracked_product_id] }))
+    .sort((a, b) => new Date(b.scraped_at) - new Date(a.scraped_at));
+  const shownFeed = (feedFilter === 'all' ? feed : feed.filter((r) => r.outcome === feedFilter)).slice(0, 100);
+
+  // Biggest movers: % change first→last successful scrape (needs ≥2 points).
+  const movers = tracked
+    .map((t) => {
+      const ok = (hist[t.id] || []).filter((r) => r.outcome !== 'failed' && r.price != null);
+      if (ok.length < 2) return null;
+      const pct = ((ok[ok.length - 1].price - ok[0].price) / ok[0].price) * 100;
+      return { t, pct, last: ok[ok.length - 1] };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+    .slice(0, 4);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -125,18 +146,99 @@ export default function App() {
         </CardContent>
       </Card>
 
-      <div className="mt-6 space-y-4">
-        {busy.initial && [0, 1, 2].map((i) => <Skeleton key={i} className="h-44 w-full" />)}
-        {!busy.initial && tracked.length === 0 && (
-          <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nothing tracked yet — search above and pick an option to start the 2-hour price watch.
-          </p>
-        )}
-        {tracked.map((t) => (
-          <TrackedCard key={t.id} t={t} rows={hist[t.id] || []}
-            isOpen={!!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))} onUntrack={() => untrack(t)} />
-        ))}
-      </div>
+      <Tabs defaultValue="tracked" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="tracked">Tracked ({tracked.length})</TabsTrigger>
+          <TabsTrigger value="activity">Activity ({all.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="tracked" className="space-y-4">
+          {busy.initial && [0, 1, 2].map((i) => <Skeleton key={i} className="h-44 w-full" />)}
+          {!busy.initial && tracked.length === 0 && (
+            <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing tracked yet — search above and pick an option to start the 2-hour price watch.
+            </p>
+          )}
+          {tracked.map((t) => (
+            <TrackedCard key={t.id} t={t} rows={hist[t.id] || []}
+              isOpen={!!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))} onUntrack={() => untrack(t)} />
+          ))}
+        </TabsContent>
+        <TabsContent value="activity">
+          <ActivityTab movers={movers} feed={shownFeed} total={feed.length} filter={feedFilter} onFilter={setFeedFilter} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ActivityTab({ movers, feed, total, filter, onFilter }) {
+  const filters = ['all', 'success', 'retried', 'failed'];
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Biggest movers</CardTitle>
+          <CardDescription>% change from first to latest successful scrape.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {movers.length === 0 && <p className="text-sm text-muted-foreground">Need at least two successful scrapes per product.</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {movers.map(({ t, pct, last }) => (
+              <div key={t.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{t.product_name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{t.selected_option_label} · {inr(last.price)}</p>
+                </div>
+                <Badge variant={pct > 0 ? 'destructive' : pct < 0 ? 'success' : 'secondary'} className="shrink-0">
+                  {pct > 0 ? <TrendingUp /> : <TrendingDown />}{pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-base">Scrape activity</CardTitle>
+            <CardDescription>Every attempt across all products, newest first (showing {feed.length} of {total}).</CardDescription>
+          </div>
+          <div className="flex gap-1.5">
+            {filters.map((f) => (
+              <Button key={f} variant={filter === f ? 'default' : 'outline'} size="sm" onClick={() => onFilter(f)}>
+                {f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {feed.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No attempts match this filter.</p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow><TableHead>Time (UTC)</TableHead><TableHead>Product</TableHead><TableHead>Price</TableHead><TableHead>Stock</TableHead><TableHead>Outcome</TableHead></TableRow>
+                </TableHeader>
+                <TableBody>
+                  {feed.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono text-xs">{tstr(r.scraped_at)}</TableCell>
+                      <TableCell>
+                        <p className="text-sm font-medium">{r.product?.product_name || '—'}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{r.selected_option}</p>
+                      </TableCell>
+                      <TableCell className="font-mono">{r.price == null ? '—' : inr(r.price)}</TableCell>
+                      <TableCell className="font-mono">{r.stock == null ? '—' : r.stock}</TableCell>
+                      <TableCell><OutcomeBadge outcome={r.outcome} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
