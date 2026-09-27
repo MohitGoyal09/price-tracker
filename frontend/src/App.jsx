@@ -68,7 +68,7 @@ export default function App() {
 
   const scrapeNow = async () => {
     setBusy((b) => ({ ...b, scrape: true }));
-    setMsg('Scraping live prices — about 15s per product…');
+    setMsg('Scraping live prices — a few seconds per product…');
     try { const r = await api('/api/scrape-now', { method: 'POST' }); setMsg(`Scrape done: ${r.results.map((x) => `${x.product} → ${x.outcome}`).join(' · ')}`); }
     catch (e) { setMsg('Error: ' + e.message); }
     setBusy((b) => ({ ...b, scrape: false }));
@@ -87,12 +87,14 @@ export default function App() {
     .sort((a, b) => new Date(b.scraped_at) - new Date(a.scraped_at));
   const shownFeed = (feedFilter === 'all' ? feed : feed.filter((r) => r.outcome === feedFilter)).slice(0, 100);
 
-  // Biggest movers: % change first→last successful scrape (needs ≥2 points).
+  // Biggest movers: % change latest vs previous successful scrape. Using the
+  // last two points (not first→last) so ancient history can't distort the board.
   const movers = tracked
     .map((t) => {
       const ok = (hist[t.id] || []).filter((r) => r.outcome !== 'failed' && r.price != null);
-      if (ok.length < 2) return null;
-      const pct = ((ok[ok.length - 1].price - ok[0].price) / ok[0].price) * 100;
+      if (ok.length < 2 || !ok[ok.length - 2].price) return null;
+      const prev = ok[ok.length - 2].price;
+      const pct = ((ok[ok.length - 1].price - prev) / prev) * 100;
       return { t, pct, last: ok[ok.length - 1] };
     })
     .filter(Boolean)
@@ -178,7 +180,7 @@ function ActivityTab({ movers, feed, total, filter, onFilter }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Biggest movers</CardTitle>
-          <CardDescription>% change from first to latest successful scrape.</CardDescription>
+          <CardDescription>% change vs previous successful scrape.</CardDescription>
         </CardHeader>
         <CardContent>
           {movers.length === 0 && <p className="text-sm text-muted-foreground">Need at least two successful scrapes per product.</p>}
