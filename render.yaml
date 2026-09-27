@@ -1,10 +1,10 @@
 services:
   - type: web
     name: price-tracker-backend
-    runtime: node
+    runtime: docker
     plan: free
-    rootDir: backend
-    buildCommand: npm install # postinstall in backend/package.json installs Playwright chromium
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
     startCommand: npm start
     envVars:
       - key: STORE_BASE_URL
@@ -14,4 +14,4 @@ services:
       - key: SUPABASE_SERVICE_KEY
         sync: false
       - key: CRON_SECRET
-        generateValue: true
+        sync: false

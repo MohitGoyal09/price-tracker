@@ -3,7 +3,9 @@ services:
     name: price-tracker-backend
     env: node
     plan: free
-    buildCommand: npm install # postinstall in package.json installs Playwright chromium
+    # NOTE: deploy as Docker (Dockerfile in this dir) — native Node builds
+    # run as non-root and cannot apt-get Playwright's system deps.
+    buildCommand: npm install # browsers come from the Playwright Docker image; see Dockerfile
     startCommand: npm start
     envVars:
       - key: STORE_BASE_URL

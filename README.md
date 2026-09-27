@@ -19,7 +19,13 @@ Live: <frontend-vercel-url> · API: <render-backend-url> · Repo: https://github
 4. Seed 2–3 tracked products from the dashboard search, then trigger `Scrape now`.
 
 ## Deploy
-- Backend → Render: Blueprint in repo-root `render.yaml` (rootDir `backend`), or manual: Node service, build `npm install && npx playwright install --with-deps chromium`, start `npm start`. Set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `CRON_SECRET`, `STORE_BASE_URL` in dashboard.
+- Backend → Render: **Runtime Docker** (required — native builds run as non-root
+  and can't `apt-get` Playwright's system deps). `backend/Dockerfile` uses the
+  Playwright `v1.63.0-noble` image (exact Chromium + deps, pinned to the npm
+  `playwright@1.63.0`). Dashboard: Runtime Docker, Dockerfile `./backend/Dockerfile`
+  (or Blueprint via repo-root `render.yaml`). Set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
+  `CRON_SECRET`, `STORE_BASE_URL` in dashboard. Local dev still uses plain
+  `npx playwright install chromium` (no `--with-deps` on macOS).
 - Frontend → Vercel: import `frontend/` as project root (Vite auto-detected), set `VITE_API_URL` to the Render URL, deploy.
 - Cron → cron-job.org every 2h: `GET https://<render-backend>/api/cron/scrape?secret=$CRON_SECRET`.
   Responds 202 instantly and scrapes in the background (a full run takes minutes);
