@@ -5,7 +5,11 @@
 // formats, and ~35% flaky loader. Plain fetch cannot produce trusted
 // mouse events or run the challenge, so Playwright Chromium is used.
 // Catalog (listings/items) stays on lightweight fetch in catalog.js.
-import { chromium } from 'playwright';
+//
+// NOTE: playwright is imported lazily inside getBrowser (not at top level)
+// so requiring this module — e.g. for parsePrice/parseStock in tests, or
+// backend boot on small cloud instances — never pays browser-lib load cost
+// or crashes when browser packages are absent.
 
 const STORE = (process.env.STORE_BASE_URL || 'https://demo.inelabteamdev.com').replace(/\/$/, '');
 const MAX_ATTEMPTS = 6; // mirrors site retry budget (jr=6)
@@ -61,6 +65,7 @@ async function getBrowser(headed = false) {
   // poison subsequent attempts. Consent scrim reappears each attempt and
   // is dismissed by dismissScrim().
   if (!browser) {
+    const { chromium } = await import('playwright');
     browser = await chromium.launch({
       headless: !headed,
       slowMo: headed ? 120 : 0,
@@ -89,6 +94,14 @@ export async function scrapeQuote(productId, optionId, { headed = false, screens
       context = await br.newContext({ viewport: { width: 1366, height: 900 } });
       page = await context.newPage();
       page.setDefaultTimeout(20000);
+      // Block images/fonts/media: the PDP is a data-driven SPA — visuals add
+      // load time but nothing the scraper reads. CSS+JS stay (layout and the
+      // price-challenge logic need them; Playwright also requires visibility).
+      await page.route('**/*', (route) => {
+        const rt = route.request().resourceType();
+        if (rt === 'image' || rt === 'font' || rt === 'media') return route.abort();
+        return route.continue();
+      });
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
       await page.waitForSelector('.pdp', { timeout: 20000 });
 
@@ -106,14 +119,19 @@ export async function scrapeQuote(productId, optionId, { headed = false, screens
           // option ids are o1/o2/o3 in DOM order; match by index suffix
           const idNum = parseInt(String(optionId).replace(/\D/g, ''), 10);
           if (idNum && i === idNum - 1) {
-            await dismissScrim(page);
-            await chips.nth(i).click({ timeout: 8000 });
+            // Skip the click when already selected (avoids a pointless
+            // re-render + re-lock of the price panel).
+            const pressed = await chips.nth(i).getAttribute('aria-pressed').catch(() => null);
+            if (pressed !== 'true') {
+              await dismissScrim(page);
+              await chips.nth(i).click({ timeout: 8000 });
+              await sleep(400);
+            }
             clicked = true;
             break;
           }
         }
         if (!clicked && n > 0) await chips.first().click({ timeout: 8000 }).catch(() => {});
-        await sleep(400);
       }
 
       // Ensure the price button is enabled: hover until it is (a late

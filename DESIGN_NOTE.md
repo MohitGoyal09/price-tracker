@@ -8,6 +8,7 @@
 - Hybrid: lightweight fetch for catalog, **Playwright Chromium** only for price (genuinely needs JS + trusted mouse events + WASM).
 - Human-like hover (12 stepped moves + 900ms dwell), verified enabled-state before clicking; 6 attempts with 300×n ms backoff (mirrors site); per-attempt fresh browser context (a flagged session can't poison later attempts).
 - Cookie-consent scrim (`.consent-scrim`) dismissed before every interaction — it covers the viewport, appears at random times, and eats all hovers/clicks.
+- Playwright imported lazily (clean cloud boot, testable parsers) and page loads skip images/fonts/media — cuts typical scrape from ~40s to ~6s with zero extraction impact (verified by screenshot).
 - Clicks re-fired until the app leaves idle (site drops ~17% silently), then stall-aware result wait: up to 300s while API traffic/status text moves, abort after 75s of silence.
 - Manifest-agnostic parsing scoped strictly inside `.offer-ready` (verified in the bundle — the assumed `.offer-detail` class never existed). `parsePrice` normalizes fullwidth digits, strips zero-width/nbsp; a `₹/Rs/INR` marker is required before any number is accepted, so product IDs and decoy digits can't be stored as prices. `parseStock` handles "Sold out"→0.
 - Honest logging: every attempt → `scrape_attempts` row (`success`/`retried`/`failed`); failures store NULL price/stock and appear in CSV + dashboard log. Never write parsed-garbage: null price/stock ⇒ failed, not zero.
