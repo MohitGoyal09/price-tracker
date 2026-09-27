@@ -18,11 +18,14 @@ async function fetchJson(url, timeoutMs = 15000) {
 export async function searchCatalog(query, maxPages = 16) {
   const q = (query || '').trim().toLowerCase();
   const out = [];
+  const seen = new Set();
   for (let page = 1; page <= maxPages; page++) {
     const data = await fetchJson(`${STORE}/api/v2/listings?page=${page}&limit=${PER_PAGE}`);
     const results = data.results || [];
     for (const r of results) {
+      if (seen.has(r.id)) continue;
       if (!q || r.name?.toLowerCase().includes(q) || r.brand?.toLowerCase().includes(q) || r.sku?.toLowerCase().includes(q)) {
+        seen.add(r.id);
         out.push(r);
       }
     }

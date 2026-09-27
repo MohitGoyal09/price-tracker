@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 headed-artifacts/
+.pw-profile-*
+probe-tmp.mjs
+verify-tmp.mjs
+shot-tmp.mjs

@@ -94,6 +94,13 @@ app.get('/api/export.csv', async (_req, res) => {
 async function scrapeAndLog(tracked) {
   const started = Date.now();
   const r = await scrapeQuote(tracked.store_product_id, tracked.selected_option_id, { headed: process.env.HEADED === '1' });
+  // The product may have been untracked while the scrape was in flight —
+  // skip logging instead of violating the FK constraint.
+  const { data: stillThere } = await supabase.from('tracked_products').select('id').eq('id', tracked.id).maybeSingle();
+  if (!stillThere) {
+    console.log(`[scrape] ${tracked.product_name} untracked mid-scrape, skipping log`);
+    return r;
+  }
   const { error } = await supabase.from('scrape_attempts').insert({
     tracked_product_id: tracked.id,
     store_product_id: tracked.store_product_id,
