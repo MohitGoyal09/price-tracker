@@ -27,15 +27,15 @@ Live: https://price-tracker-lime-chi.vercel.app · API: https://price-tracker-1-
   `CRON_SECRET`, `STORE_BASE_URL` in dashboard. Local dev still uses plain
   `npx playwright install chromium` (no `--with-deps` on macOS).
 - Frontend → Vercel: import `frontend/` as project root (Vite auto-detected), set `VITE_API_URL` to the Render URL, deploy.
-- Cron → cron-job.org every 2h: `GET https://<render-backend>/api/cron/scrape?secret=$CRON_SECRET`.
+- Cron → cron-job.org every 2h: `GET https://price-tracker-1-e7u9.onrender.com/api/cron/scrape?secret=$CRON_SECRET`.
   Responds 202 instantly and scrapes in the background (a full run takes minutes);
   overlapping runs are skipped. Check dashboard history for new rows ~10 min after trigger.
-- Keep-warm → second cron-job.org job every 10 min: `GET https://<render-backend>/api/health`.
+- Keep-warm → second cron-job.org job every 10 min: `GET https://price-tracker-1-e7u9.onrender.com/api/health`.
   Render free sleeps after ~15 min idle; this keeps one instance warm (well within 750 h/month).
   The 2h scrape cron would cold-boot otherwise and burn its HTTP timeout on startup.
 
 ## Scraping schedule
-- External cron (cron-job.org) every 2h: `GET https://<backend>/api/cron/scrape?secret=$CRON_SECRET`.
+- External cron (cron-job.org) every 2h: `GET https://price-tracker-1-e7u9.onrender.com/api/cron/scrape?secret=$CRON_SECRET`.
 - No always-on loop (free tier sleeps). Manual `POST /api/scrape-now` for demos.
 
 ## Env vars (backend)
