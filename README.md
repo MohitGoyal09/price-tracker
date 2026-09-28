@@ -5,6 +5,8 @@ tracks product options (storage size, kit, pack size), scrapes live price + stoc
 2-hour schedule, charts price history, keeps an honest per-attempt scrape log, and exports
 everything as CSV.
 
+![Headed scraper demo](./Demo.gif)
+
 ## Live deployments
 
 - **Frontend (Vercel):** https://price-tracker-lime-chi.vercel.app
