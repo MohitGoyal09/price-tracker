@@ -6,3 +6,5 @@ headed-artifacts/
 probe-tmp.mjs
 verify-tmp.mjs
 shot-tmp.mjs
+
+.DS_Store
