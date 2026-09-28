@@ -17,7 +17,7 @@
 ## Trade-offs
 - Full-browser per product is slower (~30–60s typical) vs API; accepted because challenge requires it. Sequential scrapes avoid rate-limit 429s.
 - Client-side search pages up to 16 requests; capped at 60 results for UI speed.
-- No price-drop emails yet (bonus); schema supports it via history query.
+- Price-drop alerts (bonus): `detectDrop()` fires when a success lands ≥5% below the previous success (`ALERT_DROP_PCT` overridable); consecutive comparison means sustained lows alert once. Served via `GET /api/alerts`, shown in the Activity tab.
 
 ## What AI got wrong first, and fixes
 1. Assumed SSR HTML scraping (cheerio) would work — store is empty-root SPA; fixed by checking `curl` output and switching to API+Playwright hybrid.

@@ -5,6 +5,7 @@ import { supabase } from './supabase.js';
 import { searchCatalog, getItem } from './catalog.js';
 import { scrapeQuote, closeBrowser } from './quote.js';
 import { buildCsv } from './csv.js';
+import { detectDrop } from './alerts.js';
 
 const app = express();
 app.use(cors());
@@ -97,6 +98,14 @@ async function scrapeAndLog(tracked) {
     console.log(`[scrape] ${tracked.product_name} untracked mid-scrape, skipping log`);
     return r;
   }
+  // Previous successful price BEFORE this attempt (for drop alerts).
+  let prevPrice = null;
+  if (r.price != null) {
+    const { data: prev } = await supabase.from('scrape_attempts')
+      .select('price').eq('tracked_product_id', tracked.id).not('price', 'is', null)
+      .order('scraped_at', { ascending: false }).limit(1).maybeSingle();
+    prevPrice = prev?.price ?? null;
+  }
   const { error } = await supabase.from('scrape_attempts').insert({
     tracked_product_id: tracked.id,
     store_product_id: tracked.store_product_id,
@@ -109,8 +118,32 @@ async function scrapeAndLog(tracked) {
     message: `${r.message} (${Date.now() - started}ms)`.slice(0, 500),
   });
   if (error) console.error('[scrape] log failed:', error.message);
+  // Price-drop alert (bonus): ≥ threshold below previous success.
+  const threshold = Number(process.env.ALERT_DROP_PCT || 5);
+  const alert = !error ? detectDrop(prevPrice, r.price, threshold) : null;
+  if (alert) {
+    const { error: alertErr } = await supabase.from('price_alerts').insert({
+      tracked_product_id: tracked.id,
+      store_product_id: tracked.store_product_id,
+      product_name: tracked.product_name,
+      selected_option: tracked.selected_option_label || tracked.selected_option_id,
+      old_price: alert.oldPrice,
+      new_price: alert.newPrice,
+      drop_pct: alert.dropPct,
+    });
+    if (alertErr) console.error('[alert] insert failed:', alertErr.message);
+    else console.log(`[alert] PRICE DROP ${tracked.product_name}: ${alert.oldPrice} → ${alert.newPrice} (-${alert.dropPct}%)`);
+    r.alert = alert;
+  }
   return r;
 }
+
+// Price-drop alerts feed (bonus deliverable).
+app.get('/api/alerts', async (_req, res) => {
+  const { data, error } = await supabase.from('price_alerts').select('*').order('created_at', { ascending: false }).limit(50);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
 
 // Scheduled scraping: every 2h via cron-job.org -> GET /api/cron/scrape?secret=...
 // (free-tier backends sleep; no always-on loop — external cron wakes us)

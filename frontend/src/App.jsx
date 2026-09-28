@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, RefreshCw, Zap, Download, ExternalLink, Trash2, Activity, ChevronDown, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, RefreshCw, Zap, Download, ExternalLink, Trash2, Activity, ChevronDown, TrendingUp, TrendingDown, Bell } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/card';
@@ -29,6 +29,7 @@ export default function App() {
   const [msg, setMsg] = useState('Connected to the mock store.');
   const [busy, setBusy] = useState({ search: false, scrape: false, initial: true });
   const [feedFilter, setFeedFilter] = useState('all');
+  const [alerts, setAlerts] = useState([]);
 
   const refresh = async () => {
     try {
@@ -38,6 +39,7 @@ export default function App() {
       const m = {};
       t.forEach((x, i) => { m[x.id] = hs[i]; });
       setHist(m);
+      setAlerts(await api('/api/alerts').catch(() => []));
     } catch (e) { setMsg('Error: ' + e.message); }
     setBusy((b) => ({ ...b, initial: false }));
   };
@@ -166,17 +168,37 @@ export default function App() {
           ))}
         </TabsContent>
         <TabsContent value="activity">
-          <ActivityTab movers={movers} feed={shownFeed} total={feed.length} filter={feedFilter} onFilter={setFeedFilter} />
+          <ActivityTab movers={movers} feed={shownFeed} total={feed.length} filter={feedFilter} onFilter={setFeedFilter} alerts={alerts} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function ActivityTab({ movers, feed, total, filter, onFilter }) {
+function ActivityTab({ movers, feed, total, filter, onFilter, alerts }) {
   const filters = ['all', 'success', 'retried', 'failed'];
   return (
     <div className="space-y-4">
+      <Card className={alerts.length ? 'border-amber-300' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Bell />Price-drop alerts {alerts.length > 0 && <Badge variant="warning">{alerts.length}</Badge>}</CardTitle>
+          <CardDescription>Fires when a scrape lands ≥5% below the previous success.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {alerts.length === 0 && <p className="text-sm text-muted-foreground">No drops detected yet — alerts appear here automatically.</p>}
+          <div className="space-y-2">
+            {alerts.slice(0, 5).map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-semibold">{a.product_name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{a.selected_option} · {tstr(a.created_at)}</p>
+                </div>
+                <p className="font-mono text-sm">{inr(a.old_price)} → <strong>{inr(a.new_price)}</strong> <Badge variant="success">−{Number(a.drop_pct).toFixed(1)}%</Badge></p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Biggest movers</CardTitle>
